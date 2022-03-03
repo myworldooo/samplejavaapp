@@ -64,38 +64,6 @@ spec:
   sessionAffinity: None
   type: ClusterIP
 
----
-
-apiVersion: networking.istio.io/v1beta1
-kind: VirtualService
-metadata:
-  generation: 30
-  labels:
-    app: pg-router
-    app.kubernetes.io/instance: prod-project-bombay-pg-router
-  name: pg-router
-  namespace: local
-spec:
-  gateways:
-  - prod-gateway-new
-  hosts:
-  - prod-pg2prod.com
-  http:
-  - match:
-    - uri:
-        prefix: /pgrouter
-    name: primary
-    route:
-    - destination:
-        host: pg-router
-        port:
-          number: 8080
-      weight: 100
-    - destination:
-        host: pg-router-canary
-        port:
-          number: 8080
-      weight: 0
       
       
 ---
