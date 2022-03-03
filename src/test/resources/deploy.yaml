@@ -1,121 +1,33 @@
-apiVersion: v1
-kind: Service
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  annotations:
-    argo-rollouts.argoproj.io/managed-by-rollouts: pg-router
-  labels:
-    app: pg-router
-    app.kubernetes.io/instance: prod-project-bombay-pg-router
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: pg-router
-    app.kubernetes.io/version: 1.16.0
-    helm.sh/chart: pg-router-0.1.0
-    version: v1
-  name: pg-router
-  namespace: pop
+  name: myapp
 spec:
-  ipFamilyPolicy: SingleStack
-  ports:
-  - name: http
-    port: 8080
-    protocol: TCP
-    targetPort: http
-  - name: grpc
-    port: 9090
-    protocol: TCP
-    targetPort: 9090
-  selector:
-    app.kubernetes.io/instance: pg-router
-    app.kubernetes.io/name: pg-router
-  sessionAffinity: None
-  type: ClusterIP
-
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  annotations:
-    argo-rollouts.argoproj.io/managed-by-rollouts: pg-router
-  labels:
-    app: pg-router
-    app.kubernetes.io/instance: prod-project-bombay-pg-router
-    app.kubernetes.io/managed-by: Helm
-    app.kubernetes.io/name: pg-router
-    app.kubernetes.io/version: 1.16.0
-    helm.sh/chart: pg-router-0.1.0
-    version: v1
-  name: pg-router-canary
-  namespace: pop
-spec:
-  ipFamilyPolicy: SingleStack
-  ports:
-  - name: http
-    port: 8080
-    protocol: TCP
-    targetPort: http
-  - name: grpc
-    port: 9090
-    protocol: TCP
-    targetPort: 9090
-  selector:
-    app.kubernetes.io/instance: pg-router
-    app.kubernetes.io/name: pg-router
-  sessionAffinity: None
-  type: ClusterIP
-
-      
-      
----
-
-apiVersion: argoproj.io/v1alpha1
-kind: Rollout
-metadata:
-  name: pg-router
-  labels:
-    app: nginx
-  namespace: pop
-spec:
-  revisionHistoryLimit: 3
-  replicas: 3
   selector:
     matchLabels:
-      app: nginx
+      app: myapp
+  replicas: 2
   template:
     metadata:
       labels:
-        app: nginx
+        app: myapp
     spec:
       containers:
-      - name: tomcat
-        image: jenkins/jenkins:lts
+      - name: myapp
+        image: nanajanashia/argocd-app:1.2
         ports:
-        - containerPort: 80
-  strategy:
-    canary: #Indicates that the rollout should use the Canary strategy
-      canaryService: pg-router-canary
-      stableService: pg-router
-      maxSurge: "100%"
-      maxUnavailable: "25%"
-      steps:
-      - setCanaryScale:
-          replicas: 1
-      - setWeight: 1 #percentage of traffic
-      - pause: {duration: 50s}
-      - setCanaryScale:
-          weight: 50 #replica percentage
-      - pause: {duration: 50s}
-      - setCanaryScale:
-          weight: 100
-      - setWeight: 25
-      - pause: {duration: 50s}
-      - setWeight: 50
-      - pause: {duration: 50s}
-      - setWeight: 100
-      - pause: {duration: 50s}
-      trafficRouting:
-        istio:
-          virtualService:
-            name: pg-router
-            routes:
-              - primary
+        - containerPort: 8080
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp-service
+spec:
+  selector:
+    app: myapp
+  ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
