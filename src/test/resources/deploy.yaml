@@ -1,36 +1,153 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: Service
 metadata:
-  name: samplejavaapp
+  annotations:
+    argo-rollouts.argoproj.io/managed-by-rollouts: pg-router
   labels:
-    app: samplejavaapp
+    app: pg-router
+    app.kubernetes.io/instance: prod-project-bombay-pg-router
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: pg-router
+    app.kubernetes.io/version: 1.16.0
+    helm.sh/chart: pg-router-0.1.0
+    version: v1
+  name: pg-router
+  namespace: local
 spec:
-  replicas: 2
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: http
+  - name: grpc
+    port: 9090
+    protocol: TCP
+    targetPort: 9090
   selector:
-    matchLabels:
-      app: samplejavaapp
-  template:
-    metadata:
-      labels:
-        app: samplejavaapp
-    spec:
-      containers:
-      - name: samplejavaapp
-        image: nginx
-        ports:
-        - containerPort: 8080
+    app.kubernetes.io/instance: pg-router
+    app.kubernetes.io/name: pg-router
+  sessionAffinity: None
+  type: ClusterIP
+
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    argo-rollouts.argoproj.io/managed-by-rollouts: pg-router
+  labels:
+    app: pg-router
+    app.kubernetes.io/instance: prod-project-bombay-pg-router
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: pg-router
+    app.kubernetes.io/version: 1.16.0
+    helm.sh/chart: pg-router-0.1.0
+    version: v1
+  name: pg-router-canary
+  namespace: local
+spec:
+  ipFamilyPolicy: SingleStack
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: http
+  - name: grpc
+    port: 9090
+    protocol: TCP
+    targetPort: 9090
+  selector:
+    app.kubernetes.io/instance: pg-router
+    app.kubernetes.io/name: pg-router
+  sessionAffinity: None
+  type: ClusterIP
 
 ---
 
-kind: Service
-apiVersion: v1
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
 metadata:
-  name: samplejavaapp-svc
+  generation: 30
+  labels:
+    app: pg-router
+    app.kubernetes.io/instance: prod-project-bombay-pg-router
+  name: pg-router
+  namespace: local
 spec:
-  type: NodePort
+  gateways:
+  - prod-gateway-new
+  hosts:
+  - prod-pg2prod.com
+  http:
+  - match:
+    - uri:
+        prefix: /pgrouter
+    name: primary
+    route:
+    - destination:
+        host: pg-router
+        port:
+          number: 8080
+      weight: 100
+    - destination:
+        host: pg-router-canary
+        port:
+          number: 8080
+      weight: 0
+      
+      
+---
+
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: pg-router
+  labels:
+    app: nginx
+  namespace: local
+spec:
+  revisionHistoryLimit: 3
+  replicas: 3
   selector:
-    app: samplejavaapp
-  ports:
-  - protocol: TCP
-    port: 8080
-    nodePort: 30002
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: tomcat
+        image: jenkins/jenkins:lts
+        ports:
+        - containerPort: 80
+  strategy:
+    canary: #Indicates that the rollout should use the Canary strategy
+      canaryService: pg-router-canary
+      stableService: pg-router
+      maxSurge: "100%"
+      maxUnavailable: "25%"
+      steps:
+      - setCanaryScale:
+          replicas: 1
+      - setWeight: 1 #percentage of traffic
+      - pause: {duration: 50s}
+      - setCanaryScale:
+          weight: 50 #replica percentage
+      - pause: {duration: 50s}
+      - setCanaryScale:
+          weight: 100
+      - setWeight: 25
+      - pause: {duration: 50s}
+      - setWeight: 50
+      - pause: {duration: 50s}
+      - setWeight: 100
+      - pause: {duration: 50s}
+      trafficRouting:
+        istio:
+          virtualService:
+            name: pg-router
+            routes:
+              - primary
