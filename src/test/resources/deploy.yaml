@@ -12,7 +12,7 @@ metadata:
     helm.sh/chart: pg-router-0.1.0
     version: v1
   name: pg-router
-  namespace: local
+  namespace: pop
 spec:
   ipFamilyPolicy: SingleStack
   ports:
@@ -46,7 +46,7 @@ metadata:
     helm.sh/chart: pg-router-0.1.0
     version: v1
   name: pg-router-canary
-  namespace: local
+  namespace: pop
 spec:
   ipFamilyPolicy: SingleStack
   ports:
@@ -74,7 +74,7 @@ metadata:
   name: pg-router
   labels:
     app: nginx
-  namespace: local
+  namespace: pop
 spec:
   revisionHistoryLimit: 3
   replicas: 3
